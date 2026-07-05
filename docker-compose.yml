@@ -8,4 +8,4 @@ services:
     ports:
       - "9999:9999"
     env_file:
-      - /share/Public/qnap-dashboard-proxy/.env
+      - /share/ZFS2_DATA/Public/qnap-dashboard-proxy/.env

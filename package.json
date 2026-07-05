@@ -1,0 +1,16 @@
+{
+  "name": "qnap-dashboard-proxy",
+  "version": "1.0.0",
+  "description": "Secure gateway proxy for ESP32-S3 dashboard: QNAP SNMP stats + Sonarr/Radarr/SABnzbd/qBittorrent/Emby",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.7",
+    "net-snmp": "^3.11.2",
+    "dotenv": "^16.4.5",
+    "node-cache": "^5.1.2"
+  }
+}

@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  qnap-dashboard-proxy:
+    build: .
+    container_name: qnap-dashboard-proxy
+    restart: unless-stopped
+    ports:
+      - "9999:9999"
+    env_file:
+      - /share/Public/qnap-dashboard-proxy/.env

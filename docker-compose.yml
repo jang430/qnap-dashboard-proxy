@@ -1,5 +1,14 @@
+version: "3.8"
+
+services:
+  qnap-dashboard-proxy:
+    build: .
+    container_name: qnap-dashboard-proxy
+    restart: unless-stopped
+    ports:
+      - "9999:9999"
     environment:
-      PORT: "${PORT}"
+      PORT: "9999"
       QNAP_HOST: "${QNAP_HOST}"
       QNAP_SNMP_USER: "${QNAP_SNMP_USER}"
       QNAP_SNMP_AUTH_PROTOCOL: "${QNAP_SNMP_AUTH_PROTOCOL}"

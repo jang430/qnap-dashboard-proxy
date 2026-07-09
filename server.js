@@ -394,6 +394,101 @@ app.get('/api/emby/nowplaying', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────
+// Home Assistant — lightweight summary for the main screen, plus
+// per-domain drill-down for the touchscreen tap-to-expand interaction
+// ─────────────────────────────────────────────────────────────────
+const HA_BASE = () => `http://${process.env.HA_HOST}:${process.env.HA_PORT || 8123}`;
+const HA_HEADERS = () => ({ Authorization: `Bearer ${process.env.HA_TOKEN}`, 'Content-Type': 'application/json' });
+
+app.get('/api/homeassistant/summary', async (req, res) => {
+  const cached = cache.get('ha-summary');
+  if (cached) return res.json(cached);
+
+  try {
+    const { data } = await axios.get(`${HA_BASE()}/api/states`, { headers: HA_HEADERS() });
+
+    // Group by domain (the part of entity_id before the first dot)
+    const byDomain = {};
+    data.forEach((e) => {
+      const domain = e.entity_id.split('.')[0];
+      byDomain[domain] = byDomain[domain] || [];
+      byDomain[domain].push(e);
+    });
+
+    const lights = byDomain.light || [];
+    const switches = byDomain.switch || [];
+    const climate = (byDomain.climate || []).map((e) => ({
+      entityId: e.entity_id,
+      name: e.attributes.friendly_name,
+      currentTemp: e.attributes.current_temperature,
+      targetTemp: e.attributes.temperature,
+      hvacAction: e.attributes.hvac_action,
+      mode: e.state,
+    }));
+    const problems = (byDomain.binary_sensor || []).filter(
+      (e) => e.attributes.device_class === 'problem' && e.state === 'on'
+    );
+
+    const result = {
+      domains: Object.keys(byDomain).sort().map((d) => ({ domain: d, count: byDomain[d].length })),
+      lights: { on: lights.filter((e) => e.state === 'on').length, total: lights.length },
+      switches: { on: switches.filter((e) => e.state === 'on').length, total: switches.length },
+      climate,
+      problemsActive: problems.length,
+      fetchedAt: new Date().toISOString(),
+    };
+    cache.set('ha-summary', result);
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: 'homeassistant_failed', message: err.message });
+  }
+});
+
+// Drill-down: full entity list for one domain, e.g. /api/homeassistant/domain/light
+app.get('/api/homeassistant/domain/:domain', async (req, res) => {
+  const domain = req.params.domain;
+  const cacheKey = `ha-domain-${domain}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const { data } = await axios.get(`${HA_BASE()}/api/states`, { headers: HA_HEADERS() });
+    const entities = data
+      .filter((e) => e.entity_id.startsWith(`${domain}.`))
+      .map((e) => ({
+        entityId: e.entity_id,
+        name: e.attributes.friendly_name || e.entity_id,
+        state: e.state,
+        unit: e.attributes.unit_of_measurement || null,
+      }));
+    const result = { domain, entities, fetchedAt: new Date().toISOString() };
+    cache.set(cacheKey, result, 10); // shorter cache — this is fetched on-demand when tapped
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: 'homeassistant_failed', message: err.message });
+  }
+});
+
+// Drill-down: single entity's full detail (state + all attributes), for tapping
+// even deeper from a domain list, e.g. /api/homeassistant/entity/light.living_room
+app.get('/api/homeassistant/entity/:entityId', async (req, res) => {
+  const entityId = req.params.entityId;
+  try {
+    const { data } = await axios.get(`${HA_BASE()}/api/states/${entityId}`, { headers: HA_HEADERS() });
+    res.json({
+      entityId: data.entity_id,
+      name: data.attributes.friendly_name || data.entity_id,
+      state: data.state,
+      attributes: data.attributes,
+      lastChanged: data.last_changed,
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(502).json({ error: 'homeassistant_failed', message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
 // TMDB — recently released movies/TV, formatted for a scrolling ticker
 // ─────────────────────────────────────────────────────────────────
 app.get('/api/tmdb/ticker', async (req, res) => {
@@ -462,10 +557,11 @@ app.get('/api/summary', async (req, res) => {
     `${base}/api/qnap/system`,
     `${base}/api/qnap/storage`,
     `${base}/api/tmdb/ticker`,
+    `${base}/api/homeassistant/summary`,
   ];
   try {
-    const [emby, system, storage, tmdb] = await Promise.all(endpoints.map((u) => axios.get(u).then((r) => r.data).catch((e) => ({ error: e.message }))));
-    res.json({ emby, system, storage, tmdb, fetchedAt: new Date().toISOString() });
+    const [emby, system, storage, tmdb, homeassistant] = await Promise.all(endpoints.map((u) => axios.get(u).then((r) => r.data).catch((e) => ({ error: e.message }))));
+    res.json({ emby, system, storage, tmdb, homeassistant, fetchedAt: new Date().toISOString() });
   } catch (err) {
     res.status(502).json({ error: 'summary_failed', message: err.message });
   }

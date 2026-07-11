@@ -252,7 +252,7 @@ app.get('/api/sonarr/recent', async (req, res) => {
     cache.set('sonarr-recent', result);
     res.json(result);
   } catch (err) {
-    res.status(502).json({ error: 'sonarr_failed', message: err.message });
+    res.status(502).json({ error: 'sonarr_failed', message: err.message, details: err.response?.data || null });
   }
 });
 
@@ -290,7 +290,7 @@ app.get('/api/radarr/recent', async (req, res) => {
     cache.set('radarr-recent', result);
     res.json(result);
   } catch (err) {
-    res.status(502).json({ error: 'radarr_failed', message: err.message });
+    res.status(502).json({ error: 'radarr_failed', message: err.message, details: err.response?.data || null });
   }
 });
 

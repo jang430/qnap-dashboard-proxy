@@ -228,21 +228,26 @@ app.get('/api/sonarr/recent', async (req, res) => {
     const { data } = await axios.get(url, {
       params: {
         page: 1,
-        pageSize: 10,
+        pageSize: 50, // fetch a larger batch since we filter client-side below
         sortKey: 'date',
         sortDirection: 'descending',
-        eventType: 'downloadFolderImported',
         includeSeries: true,
         includeEpisode: true,
       },
       headers: { 'X-Api-Key': process.env.SONARR_API_KEY },
     });
 
-    const items = data.records.map((r) => ({
-      series: r.series?.title,
-      episode: r.episode ? `S${String(r.episode.seasonNumber).padStart(2, '0')}E${String(r.episode.episodeNumber).padStart(2, '0')} — ${r.episode.title}` : null,
-      date: r.date,
-    }));
+    // Sonarr's history API rejects eventType as a query filter (expects an
+    // internal numeric enum, not the string it returns in responses) — so we
+    // fetch unfiltered and filter client-side on the string field instead.
+    const items = data.records
+      .filter((r) => r.eventType === 'downloadFolderImported')
+      .slice(0, 10)
+      .map((r) => ({
+        series: r.series?.title,
+        episode: r.episode ? `S${String(r.episode.seasonNumber).padStart(2, '0')}E${String(r.episode.episodeNumber).padStart(2, '0')} — ${r.episode.title}` : null,
+        date: r.date,
+      }));
     const result = { items, fetchedAt: new Date().toISOString() };
     cache.set('sonarr-recent', result);
     res.json(result);
@@ -263,20 +268,24 @@ app.get('/api/radarr/recent', async (req, res) => {
     const { data } = await axios.get(url, {
       params: {
         page: 1,
-        pageSize: 10,
+        pageSize: 50, // fetch a larger batch since we filter client-side below
         sortKey: 'date',
         sortDirection: 'descending',
-        eventType: 'downloadFolderImported',
         includeMovie: true,
       },
       headers: { 'X-Api-Key': process.env.RADARR_API_KEY },
     });
 
-    const items = data.records.map((r) => ({
-      movie: r.movie?.title,
-      year: r.movie?.year,
-      date: r.date,
-    }));
+    // Same reasoning as Sonarr above: filter client-side rather than passing
+    // eventType as a query param, since Radarr's API rejects the string form.
+    const items = data.records
+      .filter((r) => r.eventType === 'downloadFolderImported')
+      .slice(0, 10)
+      .map((r) => ({
+        movie: r.movie?.title,
+        year: r.movie?.year,
+        date: r.date,
+      }));
     const result = { items, fetchedAt: new Date().toISOString() };
     cache.set('radarr-recent', result);
     res.json(result);

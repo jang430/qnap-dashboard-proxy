@@ -4,6 +4,12 @@ const axios = require('axios');
 const snmp = require('net-snmp');
 const NodeCache = require('node-cache');
 
+// Global default timeout for every outgoing HTTP call this proxy makes.
+// Without this, a network problem (unreachable host, dropped connection)
+// causes requests to hang indefinitely instead of failing with a clear
+// error — this turns silent hangs into fast, visible timeouts.
+axios.defaults.timeout = 8000;
+
 const app = express();
 const cache = new NodeCache({ stdTTL: 15 }); // 15s cache so the ESP32 can poll often without hammering everything
 
